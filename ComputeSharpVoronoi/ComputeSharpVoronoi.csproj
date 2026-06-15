@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ComputeSharp: write DX12 compute shaders in C#.
+         ComputeSharp.D2D1 / .Uwp / .Wpf exist for UI hosting; here we use
+         the core package plus a tiny WinForms host for display. -->
+    <PackageReference Include="ComputeSharp" Version="3.1.0" />
+  </ItemGroup>
+
+  <!-- WinForms is used only to blit the computed Voronoi bitmap to a window. -->
+  <PropertyGroup>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+</Project>

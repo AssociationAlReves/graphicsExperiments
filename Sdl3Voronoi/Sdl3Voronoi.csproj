@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>CS9191</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- C# bindings for SDL3 (managed only) plus the matching native runtime
+         package, which supplies SDL3.dll/.so/.dylib for win/linux/osx. -->
+    <PackageReference Include="SDL3-CS" Version="3.4.2" />
+    <PackageReference Include="SDL3-CS.Native" Version="3.4.2" />
+    <!-- shaderc wrapper (bundles native binaries). The GLSL shaders are
+         embedded in Program.cs and compiled to SPIR-V at startup, so no
+         offline glslangValidator / Vulkan SDK is needed. -->
+    <PackageReference Include="Vortice.ShaderCompiler" Version="1.9.0" />
+  </ItemGroup>
+
+</Project>
