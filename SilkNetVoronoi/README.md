@@ -1,50 +1,86 @@
 # SilkNetVoronoi
 
-Random moving Voronoi field, rendered black-and-white on plain OpenGL 3.3 via
+Animated Voronoi diagram, rendered black-and-white on plain OpenGL 3.3 via
 Silk.NET: black background, white cell borders, a small white dot at each site.
 The most portable of the three samples — no extra toolchain, no precompiled
 shaders: the GLSL lives in `shaders/*.vert|*.frag` and is compiled at runtime by
 the driver.
 
-It ships **two switchable rendering techniques** so you can compare them live:
+It has two independent, runtime-switchable axes:
+
+**Scenes** (the site simulation — pick with F1/F2/F3):
+
+| Key | Scene | What it does |
+|---|---|---|
+| **F1** | Random field | Sites drift randomly and bounce off the edges |
+| **F2** | Blood vein | A central band of cells flows left→right (parabolic profile, recycled at the inlet) framed by static "body" cells |
+| **F3** | Image diverge | Sites are sampled from an image (darkness-weighted) so the cells reproduce the picture; **D** scatters them into a cloud and back |
+| **F4** | Tension field | Like F1 but with inter-particle repulsion (after Generative Design M_6_1_03): each site pushes near neighbours away, holding a roughly even minimum spacing — grid-accelerated so it stays real-time |
+
+**Techniques** (how the Voronoi is drawn — toggle with Space/Tab):
 
 | Technique | How | Cost |
 |---|---|---|
-| **Cone** (default) | Cone rasterization with a bounded cone radius | Scales with overdraw; fastest here |
+| **Cone** (default) | Cone rasterization with a bounded cone radius | Scales with overdraw; fastest at low/mid counts |
 | **JFA** | Jump Flooding via ping-pong FBOs | O(log N) passes, **independent of site count** |
 
 ## Run
 
 ```sh
-dotnet run -c Release          # starts in Cone mode
-dotnet run -c Release -- jfa   # starts in JFA mode
+dotnet run -c Release                  # Random field, Cone
+dotnet run -c Release -- jfa           # start in JFA mode
+dotnet run -c Release -- f2            # start in the blood-vein scene
+dotnet run -c Release -- f3 path.png   # image scene with your own picture
 ```
 
-Requires a GPU/driver with OpenGL 3.3 (essentially anything since ~2010).
+Requires a GPU/driver with OpenGL 3.3 (essentially anything since ~2010). Startup
+args are order-free tokens: `cone`/`jfa`, `f1`/`f2`/`f3` (or `random`/`vein`/`image`),
+and any other token is treated as an image path for the F3 scene.
 
-- **Space** / **Tab** — toggle Cone ⇄ JFA
+- **F1 / F2 / F3 / F4** — select scene
+- **Space** / **Tab** — toggle Cone ⇄ JFA technique
+- **D** — (image scene) scatter / reassemble the picture
 - **V** — toggle VSync on/off
 - **Esc** — quit
 
-The window title (and stdout) shows a live `ms/FPS` readout for the active
-technique. **VSync starts disabled** so the readout reflects real GPU cost rather
-than being capped at the monitor refresh; press **V** to cap it at the monitor
-refresh for smooth playback.
+## Tweak overlay
 
-## How the techniques work
+A **Dear ImGui** "Tweaks" panel (via `Silk.NET.OpenGL.Extensions.ImGui`) is drawn on top of
+the scene for live parameter editing — no rebuild needed. It always shows FPS plus global
+**Speed**/**VSync**, then the **active scene's** own controls and the **active technique's**
+own controls, which change as you switch with the F-keys / Space:
 
-The code is split into a host plus two `IVoronoiRenderer` implementations:
+- Tension field: strength, damping, max speed, repel radius.
+- Blood vein: flow speed, vein half-height. · Image: scatter/assemble button, ease time.
+- Cone: dot size, cone segment count. · JFA: dot radius.
 
-- `Program.cs` — window, input, the CPU site simulation, the shared per-instance
-  position buffer (`vec2` per site, streamed once per frame), the toggle and the
-  FPS readout.
-- `ConeRenderer.cs` — each site is a 3D cone (apex at the site, shared slope); the
-  depth test keeps the nearest apex per pixel, so the partition falls out for free.
-  Three passes: cones → offscreen **site-id** texture (RGBA8) with depth → fullscreen
-  edge-detect (white where the id changes) → round white site points.
-- `JfaRenderer.cs` — two `RG32F` textures store each pixel's nearest-seed coordinate;
-  a seed pass plants the sites, ~log₂(N) flood passes propagate the nearest seed at
-  halving step sizes, and a final pass draws borders + dots from the seed field.
+Each scene/renderer renders its own widgets via an optional `DrawUi()` on `IScene` /
+`IVoronoiRenderer`, so the panel auto-adapts to whatever is active.
+
+The window title (and stdout) shows the active `scene | technique` plus a live `ms/FPS`
+readout. **VSync starts disabled** so the readout reflects real GPU cost rather than being
+capped at the monitor refresh; press **V** to cap it for smooth playback.
+
+## Architecture
+
+Two orthogonal abstractions, both swapped at runtime by the host (`Program.cs`, which
+owns the window, input, the shared per-instance position buffer and the FPS readout):
+
+- **`IScene`** — a simulation that produces NDC site positions each frame. Implementations:
+  `RandomFieldScene`, `BloodVeinScene`, `ImageDivergeScene`. The host uploads the active
+  scene's positions (a `Vector2` span, no copy) to the instance buffer.
+- **`IVoronoiRenderer`** — visualizes whatever positions exist, so it's independent of the
+  scene:
+  - `ConeRenderer.cs` — each site is a 3D cone (apex at the site, shared slope); the depth
+    test keeps the nearest apex per pixel. Three passes: cones → offscreen **site-id**
+    texture (RGBA8) with depth → fullscreen edge-detect → round white site points.
+  - `JfaRenderer.cs` — two `RG32F` textures store each pixel's nearest-seed coordinate; a
+    seed pass plants the sites, ~log₂(N) flood passes propagate the nearest seed at halving
+    step sizes, and a final pass draws borders + dots from the seed field.
+
+The `ImageDivergeScene` loads its picture with **StbImageSharp** (pure-managed) from
+`assets/sample.png` (copied next to the binary, overridable via the CLI arg); a missing
+file falls back to a built-in procedural target.
 
 ## Shaders
 

@@ -65,11 +65,12 @@ projects share this structure; they differ only in the graphics API plumbing.
 
 ## Per-project structure notes
 
-- **Shared CPU pattern** across all three: fixed-size `_positions`/`_velocities`
-  arrays seeded with `new Random(1234)` in `InitSites`, advanced in an update step that
-  bounces sites off the edges. Cone-raster projects work in NDC `[-1,1]`; ComputeSharp
-  works in `[0,1]` texture space. `SiteCount` is a `const` at the top of each `Program.cs`,
-  now **2048 in all three**.
+- **Shared CPU pattern**: a fixed-size site array advanced each frame and uploaded as the
+  per-instance/seed positions. ComputeSharp and SDL3 keep this inline in `Program.cs` (random
+  drift + edge bounce, seeded `new Random(1234)`). **SilkNetVoronoi has generalized it into
+  swappable `IScene`s** (see below) which use `Random.Shared` (non-deterministic per run).
+  Cone-raster projects work in NDC `[-1,1]`; ComputeSharp works in `[0,1]` texture space.
+  `SiteCount` is a `const` per `Program.cs` (ComputeSharp/SDL3 2048; Silk.NET 8192).
 
 - **ComputeSharpVoronoi** writes its compute shaders *in C#* as `partial struct`s
   implementing `IComputeShader`, annotated `[GeneratedComputeShaderDescriptor]` +
@@ -77,15 +78,35 @@ projects share this structure; they differ only in the graphics API plumbing.
   host ([VoronoiForm.cs](ComputeSharpVoronoi/VoronoiForm.cs)) drives the render loop off
   `Application.Idle` and blits the bitmap. `UseWindowsForms=true`, targets `net9.0-windows`, x64.
 
-- **SilkNetVoronoi** is split into a host ([Program.cs](SilkNetVoronoi/Program.cs): window,
-  input, CPU sim, the shared per-instance VBO, the `Space`/`Tab` technique toggle, and a live
-  ms/FPS readout in the title — **VSync is off** so the readout is meaningful) plus two
-  swappable `IVoronoiRenderer` implementations: [ConeRenderer.cs](SilkNetVoronoi/ConeRenderer.cs)
-  (cone rasterization, **bounded cone radius** auto-sized as `6·2/√SiteCount` — the key perf
-  fix vs the old screen-spanning `radius = 3.0`) and [JfaRenderer.cs](SilkNetVoronoi/JfaRenderer.cs)
-  (fragment-shader JFA). `dotnet run -- jfa` starts in JFA mode. At 2048 sites bounded cones
-  (~2.7 ms) beat JFA (~3.5 ms); JFA's flat cost wins at much higher site counts (e.g. at
-  8192 sites JFA ~3.7 ms < cones ~4.7 ms).
+- **SilkNetVoronoi** has **two orthogonal axes**, both runtime-switchable, with the host
+  ([Program.cs](SilkNetVoronoi/Program.cs)) owning the window, input, shared instance VBO and
+  the live `scene | technique` ms/FPS title (**VSync off** so it's meaningful). Source is
+  grouped into folders: scenes in [scenes/](SilkNetVoronoi/scenes/), renderers in
+  [voronoi/](SilkNetVoronoi/voronoi/), shaders in [shaders/](SilkNetVoronoi/shaders/), images
+  in `assets/`; `Program.cs`, `IScene.cs`, `GlHelpers.cs` sit at the root.
+  - **Scene** (`IScene`, F1/F2/F3/F4) = the site simulation, producing NDC positions:
+    [RandomFieldScene](SilkNetVoronoi/scenes/RandomFieldScene.cs) (drift + bounce, the original),
+    [BloodVeinScene](SilkNetVoronoi/scenes/BloodVeinScene.cs) (Poiseuille-profile flow band + static
+    body cells), [ImageDivergeScene](SilkNetVoronoi/scenes/ImageDivergeScene.cs) (darkness-weighted
+    rejection-sampling of an image into home positions; **D** eases sites to/from a scattered
+    cloud), [TensionFieldScene](SilkNetVoronoi/scenes/TensionFieldScene.cs) (drift + neighbour
+    repulsion for even spacing, ported from Generative Design M_6_1_03; uses a uniform spatial
+    grid for O(N) neighbour search). Image loaded via **StbImageSharp** from `assets/`
+    (copy-to-output, CLI-overridable, procedural heart fallback). Scene keys forward via `IScene.OnKey`.
+  - **Technique** (`IVoronoiRenderer`, Space/Tab) = how it's drawn, independent of scene:
+    [ConeRenderer.cs](SilkNetVoronoi/voronoi/ConeRenderer.cs) (cone rasterization, **bounded cone
+    radius** auto-sized as `6·2/√SiteCount` — the key perf fix vs the old screen-spanning
+    `radius = 3.0`) and [JfaRenderer.cs](SilkNetVoronoi/voronoi/JfaRenderer.cs) (fragment-shader JFA).
+  - Startup args are order-free tokens: `cone`/`jfa`, `f1`/`f2`/`f3` (or `random`/`vein`/`image`),
+    and any other token is an image path. At 2048 sites bounded cones (~2.7 ms) beat JFA
+    (~3.5 ms); JFA's flat cost wins higher (8192 sites: JFA ~3.8 ms < cones ~4.7 ms).
+  - **Runtime tweak overlay**: a Dear ImGui panel (`Silk.NET.OpenGL.Extensions.ImGui`, pulls in
+    ImGui.NET + native cimgui) created in `OnLoad` and drawn each frame in `Program.DrawOverlay`
+    after the scene render. Both `IScene` and `IVoronoiRenderer` have an optional `DrawUi()`
+    default method; each active scene/renderer renders its own sliders (tension forces, flow
+    speed, dot size, cone segments, JFA dot radius), so their tunables are mutable instance
+    fields rather than consts. Key events still reach `OnKeyDown` even over the UI (not gated on
+    `ImGui.GetIO().WantCaptureKeyboard`).
   - **Shaders live in [SilkNetVoronoi/shaders/](SilkNetVoronoi/shaders/)** as `.vert`/`.frag`
     files (not C# strings), copied to the output dir and loaded at runtime via
     `GlHelpers.LinkFromFiles` (resolved against `AppContext.BaseDirectory`). `fullscreen.vert`

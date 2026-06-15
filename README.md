@@ -65,6 +65,17 @@ Press **Esc** (or close the window) to quit any of them.
 - **Windows-only and want shaders written in C#?** → ComputeSharp.
 - **Want one library for window + input + GPU, cross-platform?** → SDL3.
 
-For your larger project (the blood-vein flow and the image-to-Voronoi
-divergence scenes), the JFA approach in the ComputeSharp sample is the most
-directly extensible — both are fundamentally texture-space effects.
+## Scenes
+
+All of the brief's scenes are implemented in **`SilkNetVoronoi`**, switchable at runtime
+with **F1/F2/F3/F4** (independent of the Cone/JFA technique toggle on Space):
+
+- **F1 — random field**: points drifting and bouncing.
+- **F2 — blood vein**: a central band of cells flowing with a parabolic profile, framed
+  by static surrounding "body" cells.
+- **F3 — image diverge**: sites sampled from a picture so the cells reproduce it; **D**
+  scatters them into a cloud and reassembles the image.
+- **F4 — tension field**: like F1 but with inter-particle repulsion (after Generative
+  Design M_6_1_03), so points hold an even minimum spacing.
+
+See [SilkNetVoronoi/README.md](SilkNetVoronoi/README.md) for controls and details.

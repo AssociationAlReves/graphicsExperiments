@@ -13,12 +13,19 @@
     <PackageReference Include="Silk.NET.OpenGL" Version="2.21.0" />
     <PackageReference Include="Silk.NET.Input" Version="2.21.0" />
     <PackageReference Include="Silk.NET.Maths" Version="2.21.0" />
+    <!-- Dear ImGui overlay (pulls in ImGui.NET + native cimgui) for runtime parameter tweaking. -->
+    <PackageReference Include="Silk.NET.OpenGL.Extensions.ImGui" Version="2.21.0" />
+    <!-- Pure-managed PNG/JPG decoder for the image-divergence scene (no native deps). -->
+    <PackageReference Include="StbImageSharp" Version="2.30.15" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- GLSL shaders are loaded at runtime from disk; copy them next to the binary so
-         they can be edited and re-run without recompiling the C#. -->
+    <!-- GLSL shaders and image assets are loaded at runtime from disk; copy them next to
+         the binary so they can be edited/swapped and re-run without recompiling the C#. -->
     <None Include="shaders\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="assets\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
